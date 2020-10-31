@@ -1,0 +1,163 @@
+TARGET = Some("x86_64-unknown-linux-gnu")
+OPT_LEVEL = Some("0")
+HOST = Some("x86_64-unknown-linux-gnu")
+CC_x86_64-unknown-linux-gnu = None
+CC_x86_64_unknown_linux_gnu = None
+HOST_CC = None
+CC = None
+CFLAGS_x86_64-unknown-linux-gnu = None
+CFLAGS_x86_64_unknown_linux_gnu = None
+HOST_CFLAGS = None
+CFLAGS = None
+CRATE_CC_NO_DEFAULTS = None
+DEBUG = Some("true")
+CARGO_CFG_TARGET_FEATURE = Some("fxsr,sse,sse2")
+running: "cc" "-O0" "-ffunction-sections" "-fdata-sections" "-fPIC" "-g" "-fno-omit-frame-pointer" "-m64" "-Wall" "-Wextra" "-march=corei7" "-mavx" "-o" "/home/ratnadeepb/rust/l2switch/sw-engine/target/debug/build/ffi-bbc0d76adc105e19/out/src/shim.o" "-c" "src/shim.c"
+exit code: 0
+AR_x86_64-unknown-linux-gnu = None
+AR_x86_64_unknown_linux_gnu = None
+HOST_AR = None
+AR = None
+running: "ar" "crs" "/home/ratnadeepb/rust/l2switch/sw-engine/target/debug/build/ffi-bbc0d76adc105e19/out/librte_shim.a" "/home/ratnadeepb/rust/l2switch/sw-engine/target/debug/build/ffi-bbc0d76adc105e19/out/src/shim.o"
+exit code: 0
+cargo:rustc-link-lib=static=rte_shim
+cargo:rustc-link-search=native=/home/ratnadeepb/rust/l2switch/sw-engine/target/debug/build/ffi-bbc0d76adc105e19/out
+cargo:rustc-link-lib=dylib=rte_acl
+cargo:rustc-link-lib=dylib=rte_bbdev
+cargo:rustc-link-lib=dylib=rte_bitratestats
+cargo:rustc-link-lib=dylib=rte_bpf
+cargo:rustc-link-lib=dylib=rte_bus_dpaa
+cargo:rustc-link-lib=dylib=rte_bus_fslmc
+cargo:rustc-link-lib=dylib=rte_bus_ifpga
+cargo:rustc-link-lib=dylib=rte_bus_pci
+cargo:rustc-link-lib=dylib=rte_bus_vdev
+cargo:rustc-link-lib=dylib=rte_bus_vmbus
+cargo:rustc-link-lib=dylib=rte_cfgfile
+cargo:rustc-link-lib=dylib=rte_cmdline
+cargo:rustc-link-lib=dylib=rte_common_cpt
+cargo:rustc-link-lib=dylib=rte_common_dpaax
+cargo:rustc-link-lib=dylib=rte_common_octeontx
+cargo:rustc-link-lib=dylib=rte_common_octeontx2
+cargo:rustc-link-lib=dylib=rte_compressdev
+cargo:rustc-link-lib=dylib=rte_cryptodev
+cargo:rustc-link-lib=dylib=rte_distributor
+cargo:rustc-link-lib=dylib=rte_eal
+cargo:rustc-link-lib=dylib=rte_efd
+cargo:rustc-link-lib=dylib=rte_ethdev
+cargo:rustc-link-lib=dylib=rte_eventdev
+cargo:rustc-link-lib=dylib=rte_fib
+cargo:rustc-link-lib=dylib=rte_flow_classify
+cargo:rustc-link-lib=dylib=rte_gro
+cargo:rustc-link-lib=dylib=rte_gso
+cargo:rustc-link-lib=dylib=rte_hash
+cargo:rustc-link-lib=dylib=rte_ip_frag
+cargo:rustc-link-lib=dylib=rte_ipsec
+cargo:rustc-link-lib=dylib=rte_jobstats
+cargo:rustc-link-lib=dylib=rte_kni
+cargo:rustc-link-lib=dylib=rte_kvargs
+cargo:rustc-link-lib=dylib=rte_latencystats
+cargo:rustc-link-lib=dylib=rte_lpm
+cargo:rustc-link-lib=dylib=rte_mbuf
+cargo:rustc-link-lib=dylib=rte_member
+cargo:rustc-link-lib=dylib=rte_mempool
+cargo:rustc-link-lib=dylib=rte_mempool_bucket
+cargo:rustc-link-lib=dylib=rte_mempool_dpaa
+cargo:rustc-link-lib=dylib=rte_mempool_dpaa2
+cargo:rustc-link-lib=dylib=rte_mempool_octeontx
+cargo:rustc-link-lib=dylib=rte_mempool_octeontx2
+cargo:rustc-link-lib=dylib=rte_mempool_ring
+cargo:rustc-link-lib=dylib=rte_mempool_stack
+cargo:rustc-link-lib=dylib=rte_meter
+cargo:rustc-link-lib=dylib=rte_metrics
+cargo:rustc-link-lib=dylib=rte_net
+cargo:rustc-link-lib=dylib=rte_pci
+cargo:rustc-link-lib=dylib=rte_pdump
+cargo:rustc-link-lib=dylib=rte_pipeline
+cargo:rustc-link-lib=dylib=rte_port
+cargo:rustc-link-lib=dylib=rte_power
+cargo:rustc-link-lib=dylib=rte_rawdev
+cargo:rustc-link-lib=dylib=rte_rawdev_dpaa2_cmdif
+cargo:rustc-link-lib=dylib=rte_rawdev_dpaa2_qdma
+cargo:rustc-link-lib=dylib=rte_rawdev_ioat
+cargo:rustc-link-lib=dylib=rte_rawdev_ntb
+cargo:rustc-link-lib=dylib=rte_rawdev_octeontx2_dma
+cargo:rustc-link-lib=dylib=rte_rawdev_skeleton
+cargo:rustc-link-lib=dylib=rte_rcu
+cargo:rustc-link-lib=dylib=rte_reorder
+cargo:rustc-link-lib=dylib=rte_rib
+cargo:rustc-link-lib=dylib=rte_ring
+cargo:rustc-link-lib=dylib=rte_sched
+cargo:rustc-link-lib=dylib=rte_security
+cargo:rustc-link-lib=dylib=rte_stack
+cargo:rustc-link-lib=dylib=rte_table
+cargo:rustc-link-lib=dylib=rte_timer
+cargo:rustc-link-lib=dylib=rte_vhost
+cargo:rustc-link-lib=dylib=rte_pmd_af_packet
+cargo:rustc-link-lib=dylib=rte_pmd_ark
+cargo:rustc-link-lib=dylib=rte_pmd_atlantic
+cargo:rustc-link-lib=dylib=rte_pmd_avp
+cargo:rustc-link-lib=dylib=rte_pmd_axgbe
+cargo:rustc-link-lib=dylib=rte_pmd_bbdev_fpga_lte_fec
+cargo:rustc-link-lib=dylib=rte_pmd_bbdev_null
+cargo:rustc-link-lib=dylib=rte_pmd_bbdev_turbo_sw
+cargo:rustc-link-lib=dylib=rte_pmd_bnxt
+cargo:rustc-link-lib=dylib=rte_pmd_bond
+cargo:rustc-link-lib=dylib=rte_pmd_caam_jr
+cargo:rustc-link-lib=dylib=rte_pmd_crypto_scheduler
+cargo:rustc-link-lib=dylib=rte_pmd_cxgbe
+cargo:rustc-link-lib=dylib=rte_pmd_dpaa
+cargo:rustc-link-lib=dylib=rte_pmd_dpaa2
+cargo:rustc-link-lib=dylib=rte_pmd_dpaa2_event
+cargo:rustc-link-lib=dylib=rte_pmd_dpaa2_sec
+cargo:rustc-link-lib=dylib=rte_pmd_dpaa_event
+cargo:rustc-link-lib=dylib=rte_pmd_dpaa_sec
+cargo:rustc-link-lib=dylib=rte_pmd_dsw_event
+cargo:rustc-link-lib=dylib=rte_pmd_e1000
+cargo:rustc-link-lib=dylib=rte_pmd_ena
+cargo:rustc-link-lib=dylib=rte_pmd_enetc
+cargo:rustc-link-lib=dylib=rte_pmd_enic
+cargo:rustc-link-lib=dylib=rte_pmd_failsafe
+cargo:rustc-link-lib=dylib=rte_pmd_fm10k
+cargo:rustc-link-lib=dylib=rte_pmd_hinic
+cargo:rustc-link-lib=dylib=rte_pmd_hns3
+cargo:rustc-link-lib=dylib=rte_pmd_i40e
+cargo:rustc-link-lib=dylib=rte_pmd_iavf
+cargo:rustc-link-lib=dylib=rte_pmd_ice
+cargo:rustc-link-lib=dylib=rte_pmd_ifc
+cargo:rustc-link-lib=dylib=rte_pmd_ixgbe
+cargo:rustc-link-lib=dylib=rte_pmd_kni
+cargo:rustc-link-lib=dylib=rte_pmd_liquidio
+cargo:rustc-link-lib=dylib=rte_pmd_memif
+cargo:rustc-link-lib=dylib=rte_pmd_netvsc
+cargo:rustc-link-lib=dylib=rte_pmd_nfp
+cargo:rustc-link-lib=dylib=rte_pmd_nitrox
+cargo:rustc-link-lib=dylib=rte_pmd_null
+cargo:rustc-link-lib=dylib=rte_pmd_null_crypto
+cargo:rustc-link-lib=dylib=rte_pmd_octeontx
+cargo:rustc-link-lib=dylib=rte_pmd_octeontx2
+cargo:rustc-link-lib=dylib=rte_pmd_octeontx2_crypto
+cargo:rustc-link-lib=dylib=rte_pmd_octeontx2_event
+cargo:rustc-link-lib=dylib=rte_pmd_octeontx_compress
+cargo:rustc-link-lib=dylib=rte_pmd_octeontx_crypto
+cargo:rustc-link-lib=dylib=rte_pmd_octeontx_event
+cargo:rustc-link-lib=dylib=rte_pmd_opdl_event
+cargo:rustc-link-lib=dylib=rte_pmd_pcap
+cargo:rustc-link-lib=dylib=rte_pmd_pfe
+cargo:rustc-link-lib=dylib=rte_pmd_qat
+cargo:rustc-link-lib=dylib=rte_pmd_qede
+cargo:rustc-link-lib=dylib=rte_pmd_ring
+cargo:rustc-link-lib=dylib=rte_pmd_sfc
+cargo:rustc-link-lib=dylib=rte_pmd_skeleton_event
+cargo:rustc-link-lib=dylib=rte_pmd_softnic
+cargo:rustc-link-lib=dylib=rte_pmd_sw_event
+cargo:rustc-link-lib=dylib=rte_pmd_tap
+cargo:rustc-link-lib=dylib=rte_pmd_thunderx
+cargo:rustc-link-lib=dylib=rte_pmd_vdev_netvsc
+cargo:rustc-link-lib=dylib=rte_pmd_vhost
+cargo:rustc-link-lib=dylib=rte_pmd_virtio
+cargo:rustc-link-lib=dylib=rte_pmd_virtio_crypto
+cargo:rustc-link-lib=dylib=rte_pmd_vmxnet3
+cargo:rustc-link-lib=dylib=numa
+cargo:rustc-link-lib=dylib=pcap
+cargo:rerun-if-changed=build.rs
+cargo:rerun-if-changed=src/

@@ -21,3 +21,4 @@ serde = { version = "1.0", features = ["derive"] }
 clap = "2.33.3"
 regex = "1.4.1"
 futures = "0.3.7"
+crossbeam-deque = "0.8.0"

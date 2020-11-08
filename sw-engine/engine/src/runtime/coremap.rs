@@ -7,7 +7,6 @@ use crate::{
 	debug,
 	dpdk::{CoreId, Mempool, MempoolMap, PortQueue, MEMPOOL, Mbuf},
 	error, ffi, info,
-	stealers
 };
 use failure::{Fail, Fallible};
 use futures;
@@ -28,7 +27,7 @@ pub(crate) enum WorkerType {
 
 /// Task type
 pub(crate) enum ExecutorType {
-	Master(fn()), // Provide the management function
+	Master,
 	Worker(WorkerType),
 }
 
@@ -37,9 +36,9 @@ pub(crate) enum ExecutorType {
 /// An RX taskk reads packets
 /// A TX task sends packets out
 pub(crate) struct Executor {
-	pub(crate) builder: thread::Builder, // A thread can be spawned from the builder
+	pub(crate) builder: thread::Thread, // A thread can be spawned from the builder
 	pub(crate) core_id: CoreId, // The core to which this thread should affinitise
-	// pub(crate) worker: futures::executor::LocalSpawner,
+	pub(crate) worker: &'static thread::LocalKey<futures::executor::LocalSpawner>,
 	pub(crate) task_type: ExecutorType,
 }
 
@@ -94,7 +93,7 @@ impl<'a> CoreMapBuilder<'a> {
 		let mempool = self.mempools.get_raw(socket_id)?;
 
 		let master_executor =
-			init_core(self.master_core, mempool, ExecutorType::Master(main_loop)).unwrap();
+			init_core(self.master_core, SendableMemPtr(mempool), ExecutorType::Master).unwrap();
 
 		// add master core to the map
 		map.insert(self.master_core, master_executor);
@@ -196,28 +195,68 @@ fn find_packets_batch_to_transmit(local: &Worker<Mbuf>, global: &Injector<Mbuf>)
 
 fn init_core(
 	id: CoreId,
-	mempool: *mut dpdk_ffi::rte_mempool,
+	// mempool: *mut dpdk_ffi::rte_mempool,
+	mempool: SendableMemPtr,
 	ex: ExecutorType,
 ) -> Fallible<Executor> {
-	// affinitise thread to core
-	// id.set_thread_affinity()?;
-
-	// set the mempool
-	// MEMPOOL.with(|tls| tls.set(mempool));
-
-	// let task_pool = futures::executor::LocalPool::new();
 	match ex {
-		ExecutorType::Master(f) => Ok(Executor {
-			// worker: task_pool.spawner(),
-			builder: thread::Builder::new().name("Master_Thread".into()),
-			core_id: id,
-			task_type: ExecutorType::Master(f),
-		}),
-		ExecutorType::Worker(portqueue) => Ok(Executor {
-			builder: thread::Builder::new().name("Worker_Thread".into()),
-			core_id: id,
-			task_type: ExecutorType::Worker(portqueue),
-		}),
+		ExecutorType::Master => {
+			let (tx, rx) = mpsc::channel();
+			let _ = thread::spawn(move || {
+				id.set_thread_affinity().unwrap();
+				MEMPOOL.with(|tls| tls.set(mempool.0));
+				thread_local! {
+					static LOCAL_TASK_POOL: futures::executor::LocalSpawner = futures::executor::LocalPool::new().spawner();
+				}
+				let executor = Executor {
+					builder: thread::current(),
+					core_id: id,
+					worker: &LOCAL_TASK_POOL,
+					task_type: ExecutorType::Master,
+				};
+				tx.send(executor);
+			});
+			Ok(rx.recv().unwrap())
+		},
+		ExecutorType::Worker(T) => {
+			let (tx, rx) = mpsc::channel();
+			let _ = thread::spawn(move || {
+				MEMPOOL.with(|tls| tls.set(mempool.0));
+				match T {
+					WorkerType::RX => {
+						let _ = thread::spawn(move || {
+						id.set_thread_affinity().unwrap();
+						thread_local! {
+							static LOCAL_TASK_POOL: futures::executor::LocalSpawner = futures::executor::LocalPool::new().spawner();
+						}
+						let executor = Executor {
+							builder: thread::current(),
+							core_id: id,
+							worker: &LOCAL_TASK_POOL,
+							task_type: ExecutorType::Worker(T),
+						};
+						tx.send(executor);
+						});
+					},
+					WorkerType::TX => {
+						let _ = thread::spawn(move || {
+						id.set_thread_affinity().unwrap();
+						thread_local! {
+							static LOCAL_TASK_POOL: futures::executor::LocalSpawner = futures::executor::LocalPool::new().spawner();
+						}
+						let executor = Executor {
+							builder: thread::current(),
+							core_id: id,
+							worker: &LOCAL_TASK_POOL,
+							task_type: ExecutorType::Worker(T),
+						};
+						tx.send(executor);
+						});
+					}
+				}
+			});
+			Ok(rx.recv().unwrap())
+		}
 	}
 }
 

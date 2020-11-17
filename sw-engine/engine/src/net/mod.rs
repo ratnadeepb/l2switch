@@ -52,4 +52,12 @@ impl FiveTuple {
 			proto: ihdr.next_proto_id,
 		}
 	}
+
+	pub fn get_d_mac(&self) -> MacAddr {
+		self.dst_mac
+	}
+
+	pub fn get_d_ip(&self) -> Ipv4Addr {
+		self.dst_ip
+	}
 }

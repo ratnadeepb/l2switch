@@ -19,15 +19,19 @@ pub struct RoutingTable {
 
 impl RoutingTable {
 	/// Add a mac and ip to the routing table
-	pub fn add(&mut self, mac: MacAddr, ip: Ipv4Addr) {
+	pub fn add(&self, mac: MacAddr, ip: Ipv4Addr) {
 		// NOTE: This is the only function that needs a write lock.
 		// The assumption is that it runs much less than the read functions
 
 		// take the lock for both tables or neither of them
 		if let Ok(mut mac_table) = self.mac_table.write() {
 			if let Ok(mut ip_table) = self.ip_table.write() {
-				(*mac_table).insert(mac, ip);
-				(*ip_table).insert(ip, mac);
+				// if either of the tables doesn't contain the ip or the mac
+				// we update both the tables
+				if !self.contains_mac(&mac) || !self.contains_ip(&ip) {
+					(*mac_table).insert(mac, ip);
+					(*ip_table).insert(ip, mac);
+				}
 			}
 		}
 	}

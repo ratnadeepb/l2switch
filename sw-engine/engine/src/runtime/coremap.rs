@@ -7,8 +7,9 @@ use crate::{
 	debug,
 	dpdk::Mbuf,
 	error, ffi, info,
-	net::{EtherHdr, Ipv4Hdr},
-	PortQueue, ETHER_HDR_SZ, IPV4_HDR_SZ, MBUFS_RECVD, PACKET_READ_SIZE, PORTS,
+	net::{EtherHdr, FiveTuple, Ipv4Hdr},
+	PortQueue, ETHER_HDR_SZ, FORWARDING_TABLE, IPV4_HDR_SZ, MBUFS_RECVD, PACKET_READ_SIZE, PORTMAP,
+	PORTS,
 };
 use dpdk_ffi;
 use failure::{Fail, Fallible};
@@ -37,17 +38,27 @@ async fn rx_main(mut receiver: futures::channel::oneshot::Receiver<()>) {
 	}
 }
 
-/// get the source IP and MAC address of each packet
-/// associate with the port on which it was received
-/// can be used for security purposes later
-async fn get_port_ip_mac_mapping() {
+/// Extract the five tuple from each mbuf
+/// Associate the five tuple with a port id
+/// Update the routing table
+async fn update_mappings() {
 	MBUFS_RECVD.with(|hashmap| {
-		let portmap: HashMap<u16, Vec<Mbuf>> = HashMap::new();
+		// the take() consumes the memory leaving the hashmap in default state
 		for (pnum, mbufs) in hashmap.take().iter_mut() {
 			if !mbufs.is_empty() {
 				for mbuf in mbufs.iter_mut() {
 					let ether_hdr = EtherHdr::from_mbuf(mbuf);
 					let ipv4_hdr = Ipv4Hdr::from_mbuf(mbuf);
+					let five_tuple = FiveTuple::new(ipv4_hdr, ether_hdr);
+					let d_mac = five_tuple.get_d_mac();
+					let d_ip = five_tuple.get_d_ip();
+					// Add five tuple to the portmap
+					let portmap = PORTMAP.get();
+					portmap.insert(*pnum, five_tuple);
+
+					// update forwarding table
+					let forwarding_table = FORWARDING_TABLE.get();
+					forwarding_table.add(d_mac, d_ip);
 				}
 			}
 		}

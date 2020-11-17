@@ -12,4 +12,8 @@ impl EtherHdr {
 	pub fn from_mbuf(buf: &mut Mbuf) -> Self {
 		Self(unsafe { *(dpdk_ffi::_pkt_ether_hdr(buf.raw_mut()) as *mut dpdk_ffi::rte_ether_hdr) })
 	}
+
+	pub fn get(self) -> dpdk_ffi::rte_ether_hdr {
+		self.0
+	}
 }

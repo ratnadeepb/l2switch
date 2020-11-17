@@ -20,9 +20,12 @@ pub struct RoutingTable {
 impl RoutingTable {
 	/// Add a mac and ip to the routing table
 	pub fn add(&mut self, mac: MacAddr, ip: Ipv4Addr) {
+		// NOTE: This is the only function that needs a write lock.
+		// The assumption is that it runs much less than the read functions
+
 		// take the lock for both tables or neither of them
-		if let Ok(mac_table) = self.mac_table.write() {
-			if let Ok(ip_table) = self.ip_table.write() {
+		if let Ok(mut mac_table) = self.mac_table.write() {
+			if let Ok(mut ip_table) = self.ip_table.write() {
 				(*mac_table).insert(mac, ip);
 				(*ip_table).insert(ip, mac);
 			}
@@ -50,22 +53,26 @@ impl RoutingTable {
 	}
 
 	/// Returns an Option<&MacAddr>
-	pub fn get_mac(&self, ip: &Ipv4Addr) -> Option<&MacAddr> {
-		if let Ok(table) = (*self.ip_table).read() {
-			(*table).get(ip)
-		} else {
-			// ISSUES: Need better handling of PANIC here
-			None
+	pub fn get_mac(&self, ip: &Ipv4Addr) -> Option<MacAddr> {
+		// ISSUES: Need better handling of PANIC here
+		match (*self.ip_table).read() {
+			Ok(table) => match (*table).get(ip) {
+				Some(mac) => Some(*mac),
+				_ => None, // Didn't get MAC
+			},
+			_ => None, // Couldn't get read lock on tables
 		}
 	}
 
 	/// Returns an Option<&Ipv4Addr>
-	pub fn get_ip(&self, mac: &MacAddr) -> Option<&Ipv4Addr> {
-		if let Ok(table) = (*self.mac_table).read() {
-			(*table).get(mac)
-		} else {
-			// ISSUES: Need better handling of PANIC here
-			None
+	pub fn get_ip(&self, mac: &MacAddr) -> Option<Ipv4Addr> {
+		// ISSUES: Need better handling of PANIC here
+		match (*self.mac_table).read() {
+			Ok(table) => match (*table).get(mac) {
+				Some(ip) => Some(*ip),
+				_ => None,
+			},
+			_ => None,
 		}
 	}
 }

@@ -119,6 +119,18 @@ int _rte_ring_dequeue(struct rte_ring *r, void **obj_p);
 
 /* Enqueue several objects on a ring. */
 unsigned int _rte_ring_enqueue_bulk(struct rte_ring *r, void *const *obj_table,
-                                   unsigned int n, unsigned int *free_space);
+                                    unsigned int n, unsigned int *free_space);
+
+/* Get the Ethernet header from the packet */
+struct rte_ether_hdr *_pkt_ether_hdr(struct rte_mbuf *pkt);
+
+/* Get the IPv4 header from the packet */
+struct rte_ipv4_hdr *_pkt_ipv4_hdr(struct rte_mbuf *pkt);
+
+/* Get the TCP header from the packet */
+struct rte_tcp_hdr *_pkt_tcp_hdr(struct rte_mbuf *pkt);
+
+/* Get the UDP header from the packet */
+struct rte_udp_hdr *_pkt_udp_hdr(struct rte_mbuf *pkt);
 
 void stop_and_close_ports();

@@ -15,7 +15,7 @@ use crate::{
 	warn,
 };
 use failure::{Fail, Fallible};
-use std::{collections::HashMap, fmt, os::raw, ptr};
+use std::{collections::HashMap, fmt, marker::Sync, os::raw, ptr};
 
 const DEFAULT_RSS_HF: u64 =
 	(dpdk_ffi::ETH_RSS_IP | dpdk_ffi::ETH_RSS_TCP | dpdk_ffi::ETH_RSS_UDP | dpdk_ffi::ETH_RSS_SCTP)
@@ -117,6 +117,11 @@ impl PortQueue {
 		}
 	}
 
+	/// get the port id
+	pub fn get_portid(&self) -> u16 {
+		self.port_id.0
+	}
+
 	/// Receives a burst of packets from the receive queue
 	/// Up to a maximum of 32 packets
 	pub fn receive(&self) -> Vec<Mbuf> {
@@ -215,6 +220,8 @@ impl PortQueue {
 		super::eth_macaddr_get(self.port_id.0)
 	}
 }
+
+unsafe impl Sync for PortQueue {}
 
 /// Error indicating failed to initialize the port.
 #[derive(Debug, Fail)]

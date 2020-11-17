@@ -19,7 +19,11 @@
 //! Common network utilities.
 
 mod cidr;
+mod ether;
+mod ipv4;
 mod mac;
 
 pub use self::cidr::{Cidr, CidrError, Ipv4Cidr, Ipv6Cidr};
+pub use self::ether::EtherHdr;
+pub use self::ipv4::Ipv4Hdr;
 pub use self::mac::{MacAddr, MacParseError};

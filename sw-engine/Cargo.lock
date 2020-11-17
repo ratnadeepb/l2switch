@@ -278,6 +278,7 @@ dependencies = [
  "clap",
  "clippy",
  "crossbeam-deque",
+ "crossbeam-utils 0.8.0",
  "dpdk_ffi",
  "failure",
  "futures",

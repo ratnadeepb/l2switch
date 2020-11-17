@@ -19,10 +19,11 @@
 use failure::Fail;
 use std::convert::From;
 use std::fmt;
+use std::hash::Hash;
 use std::str::FromStr;
 
 /// Ethernet MAC address.
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(C, packed)]
 pub struct MacAddr([u8; 6]);
 

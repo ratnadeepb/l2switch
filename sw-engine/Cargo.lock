@@ -258,6 +258,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-queue"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b2a58563f049aa3bae172bc4120f093b5901161c629f280a1f40ba55317d774"
+dependencies = [
+ "cfg-if 1.0.0",
+ "crossbeam-utils 0.8.0",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -318,12 +328,12 @@ dependencies = [
  "clap",
  "clippy",
  "crossbeam-deque",
+ "crossbeam-queue",
  "crossbeam-utils 0.8.0",
  "dashmap",
  "dpdk_ffi",
  "failure",
  "futures",
- "lazy_static",
  "libc",
  "once_cell",
  "regex",
@@ -785,6 +795,9 @@ name = "state"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3015a7d0a5fd5105c91c3710d42f9ccf0abfb287d62206484dcc67f9569a6483"
+dependencies = [
+ "lazy_static",
+]
 
 [[package]]
 name = "strsim"

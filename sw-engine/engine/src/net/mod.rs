@@ -30,7 +30,43 @@ pub use self::ipv4::Ipv4Hdr;
 pub use self::mac::{MacAddr, MacParseError};
 pub use self::routing_table::RoutingTable;
 
+use crate::Mbuf;
 use std::net::Ipv4Addr;
+
+pub struct PortIdMbuf {
+	pub portid: u16,
+	pub buf: Vec<Mbuf>,
+}
+
+// pub struct XmitToClients {
+// 	capacity: usize,      // how many mbufs can be held
+// 	len: usize,           // how many mbufs are currently held
+// 	pkts: VecDeque<Mbuf>, // A deque with O(1) amortized inserts and removals from both ends and an O(1) indexing
+// }
+
+// impl XmitToClients {
+// 	pub fn new() -> Self {
+// 		let capacity: usize;
+// 		match PORTS.try_get() {
+// 			Some(ports) => {
+// 				capacity = ports.len() * PACKET_READ_SIZE;
+// 			}
+// 			None => {
+// 				capacity = PACKET_READ_SIZE;
+// 			}
+// 		}
+// 		Self {
+// 			capacity,
+// 			len: 0,
+// 			pkts: VecDeque::with_capacity(capacity),
+// 		}
+// 	}
+
+// 	/// Add packets to the queues
+// 	pub fn push_pkt(&mut self, pkt: Mbuf) {
+// 		self.pkts.push_back(pkt);
+// 	}
+// }
 
 pub struct FiveTuple {
 	src_mac: MacAddr,

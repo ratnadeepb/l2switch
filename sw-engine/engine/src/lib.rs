@@ -17,12 +17,13 @@ mod runtime;
 use crate::dpdk::{Mbuf, PortQueue};
 // use crossbeam_deque::Stealer;
 // use lazy_static::lazy_static;
-use crate::net::{FiveTuple, RoutingTable};
+use crate::net::{FiveTuple, PortIdMbuf, RoutingTable};
 use dashmap::DashMap;
+use lazy_static::lazy_static;
 use state;
 use std::{
     cell::Cell,
-    collections::{hash_map::RandomState, HashMap},
+    collections::{hash_map::RandomState, HashMap, VecDeque},
     mem,
 };
 
@@ -43,10 +44,9 @@ pub static PORTS: state::Storage<Vec<PortQueue>> = state::Storage::new();
 pub static PORTMAP: state::Storage<DashMap<u16, FiveTuple, RandomState>> = state::Storage::new();
 pub static FORWARDING_TABLE: state::Storage<RoutingTable> = state::Storage::new();
 
-thread_local! {
-    pub static MBUFS_RECVD: Cell<HashMap<u16, Vec<Mbuf>>> = Cell::new(HashMap::new());
-    // pub static MBUFS_RECVD: Cell<Vec<Mbuf>> = Cell::new(Vec::with_capacity(PACKET_READ_SIZE));
-}
+// thread_local! {
+//     pub static MBUFS: VecDeque<PortIdMbuf> = VecDeque::new();
+// }
 
 #[cfg(test)]
 mod tests {

@@ -11,8 +11,9 @@ mod dpdk;
 mod ffi;
 mod macros;
 // pub mod metrics;
+pub mod dockerlib;
 pub mod net;
-mod runtime;
+pub mod runtime;
 
 use crate::dpdk::{Mbuf, PortQueue};
 use crate::net::{FiveTuple, PortIdMbuf, RoutingTable};

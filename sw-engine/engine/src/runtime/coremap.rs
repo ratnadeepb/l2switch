@@ -90,11 +90,17 @@ fn work_horse(
 	receiver: futures::channel::oneshot::Receiver<()>,
 	mbufs: &'static ArrayQueue<PortIdMbuf>,
 ) {
+	// create an executor to run on the local thread only
 	let mut executor = futures::executor::LocalPool::new();
+	// a task spawner associated to the executor
 	let spawner = executor.spawner();
+	// create the required futures (green threads)
 	let rx_fut = rx_main(receiver, mbufs); // get packets
 	let process_pkts_fut = process_packets(mbufs); // process packets
+	// spawn the futures
 	let rx_fut_handle = spawner.spawn_local_with_handle(rx_fut).unwrap();
 	spawner.spawn_local(process_pkts_fut).unwrap();
-	executor.run_until(rx_fut_handle); // drop everything the moment the rx_main function returns
+	// run the executor till rx_fut returns
+	// drop everything the moment the rx_main function returns
+	executor.run_until(rx_fut_handle);
 }

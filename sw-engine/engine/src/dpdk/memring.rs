@@ -6,23 +6,52 @@
 use super::SocketId;
 use crate::{
 	debug,
-	dpdk::DpdkError,
+	dpdk::{DpdkError, Mbuf},
 	ffi::{AsStr, ToCString, ToResult},
 	info,
 };
 use dpdk_ffi;
-use failure::Fallible;
-use std::{fmt, os::raw, ptr::NonNull};
+use failure::{format_err, Fallible};
+use std::{collections::HashMap, ffi::c_void, fmt, os::raw, ptr::NonNull, sync::Arc};
 
 const NO_FLAGS: u8 = 0;
+
+/// The RingType is whether message is being sent from engine to container or from contianer to engine
+pub enum RingType {
+	RX,
+	TX,
+}
 
 /// A ring is intended to communicate between two DPDK processes by sending/receiving `Mbuf`.
 /// For best performance, each socket should have a dedicated `Mempool`.
 pub struct Ring {
+	client_id: u16,
+	rtype: RingType,
 	raw: NonNull<dpdk_ffi::rte_ring>,
 }
 
+// allows to create a ring before a client id is available
+// most likely will not be required
+impl Default for Ring {
+	fn default() -> Self {
+		Self {
+			client_id: 0,
+			rtype: RingType::TX,
+			raw: NonNull::dangling(),
+		}
+	}
+}
+
 impl Ring {
+	/// Create a new Ring from a pointer
+	pub fn from_ptr(client_id: u16, rtype: RingType, r: *mut dpdk_ffi::rte_ring) -> Self {
+		let raw = unsafe { NonNull::new_unchecked(r) };
+		Self {
+			client_id,
+			rtype,
+			raw,
+		}
+	}
 	/// Creates a new `Ring` for `Mbuf`.
 	///
 	/// `capacity` is the maximum number of `Mbuf` the `Mempool` can hold.
@@ -35,7 +64,13 @@ impl Ring {
 	/// # Errors
 	///
 	/// If allocation fails, then `DpdkError` is returned.
-	pub fn new(name: String, capacity: usize, socket_id: SocketId) -> Fallible<Self> {
+	pub fn new(
+		client_id: u16,
+		rtype: RingType,
+		name: String,
+		capacity: usize,
+		socket_id: SocketId,
+	) -> Fallible<Self> {
 		let raw = unsafe {
 			dpdk_ffi::rte_ring_create(
 				name.clone().to_cstring().as_ptr(),
@@ -46,7 +81,52 @@ impl Ring {
 			.to_result(|_| DpdkError::new())?
 		};
 		info!("Created ring {}", name);
-		Ok(Self { raw })
+		Ok(Self {
+			client_id,
+			rtype,
+			raw,
+		})
+	}
+
+	/// Get the name to lookup with
+	#[inline]
+	pub fn name(&self) -> &str {
+		let name: &str;
+		match self.rtype {
+			RingType::RX => name = "RX-",
+			RingType::TX => name = "TX-",
+		}
+		let id = &format!("{}", self.client_id);
+		&format!("{}{}", name, id)
+	}
+
+	/// Enqueue a single packet onto the ring
+	pub fn enqueue(&mut self, pkt: Mbuf) -> Fallible<()> {
+		// match unsafe { dpdk_ffi::_rte_ring_enqueue(self.raw_mut(), pkt.into_ptr() as *mut c_void) }
+		// {
+		// 	0 => true,
+		// 	_ => false,
+		// }
+		unsafe {
+			dpdk_ffi::_rte_ring_enqueue(self.raw_mut(), pkt.into_ptr() as *mut c_void)
+				.to_result(|_| DpdkError::new())?
+		};
+		Ok(())
+	}
+
+	/// Dequeue a single packet from the ring
+	pub fn dequeue(&mut self, pkt: &mut Mbuf) -> Fallible<()> {
+		// match unsafe {
+		// 	dpdk_ffi::_rte_ring_dequeue(self.raw_mut(), &mut (pkt.into_ptr() as *mut c_void))
+		// } {
+		// 	0 => true,
+		// 	_ => false,
+		// }
+		unsafe {
+			dpdk_ffi::_rte_ring_dequeue(self.raw_mut(), &mut (pkt.into_ptr() as *mut c_void))
+				.to_result(|_| DpdkError::new())?
+		};
+		Ok(())
 	}
 
 	/// Returns the raw struct needed for FFI calls.
@@ -61,11 +141,11 @@ impl Ring {
 		unsafe { self.raw.as_mut() }
 	}
 
-	/// Returns the name of the `Mempool`.
-	#[inline]
-	pub fn name(&self) -> &str {
-		self.raw().name[..].as_str()
-	}
+	// Returns the name of the `Mempool`.
+	// #[inline]
+	// pub fn name(&self) -> &str {
+	// 	self.raw().name[..].as_str()
+	// }
 }
 
 impl fmt::Debug for Ring {
@@ -85,6 +165,62 @@ impl Drop for Ring {
 		debug!("freeing {}.", self.name());
 		unsafe {
 			dpdk_ffi::rte_ring_free(self.raw_mut());
+		}
+	}
+}
+
+/// The engine and client communicate with each other through
+/// a transmit and a receive Ring
+/// These two Rings together form a channel
+pub struct Channel {
+	tx_q: Ring,
+	rx_q: Ring,
+}
+
+impl Channel {
+	/// New Channel
+	pub fn new(tx_q: Ring, rx_q: Ring) -> Self {
+		Self { tx_q, rx_q }
+	}
+
+	/// Send a packet
+	pub fn send(&mut self, pkt: Mbuf) -> Fallible<()> {
+		self.tx_q.enqueue(pkt)
+	}
+
+	/// Receive a packet
+	pub fn receive(&mut self, pkt: &mut Mbuf) -> Fallible<()> {
+		self.rx_q.dequeue(pkt)
+	}
+}
+
+impl Drop for Channel {
+	fn drop(&mut self) {
+		drop(self.rx_q);
+		drop(self.tx_q);
+	}
+}
+
+/// Ring to container client maps
+/// This structure owns all the rings of the engine
+pub struct EngineRingMap {
+	ring_map: HashMap<u16, Channel>,
+}
+
+impl EngineRingMap {
+	/// Send a packet to a container
+	pub fn send(&mut self, key: u16, pkt: Mbuf) -> Fallible<()> {
+		match self.ring_map.get_mut(&key) {
+			Some(ch) => ch.send(pkt),
+			None => Err(format_err!("Failed to send packet")),
+		}
+	}
+
+	/// Receive a packet from a container
+	pub fn receive(&mut self, key: u16, pkt: &mut Mbuf) -> Fallible<()> {
+		match self.ring_map.get_mut(&key) {
+			Some(ch) => ch.receive(pkt),
+			None => Err(format_err!("Failed to receive packet")),
 		}
 	}
 }

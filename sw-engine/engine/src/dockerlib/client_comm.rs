@@ -3,40 +3,43 @@
  * Created by Ratnadeep Bhattacharya
  */
 
+use crate::dpdk::{Channel, Ring, RingType};
 use serde::{Deserialize, Serialize};
-use serde_json::Result as sResult;
+// use serde_json::Result as sResult;
 use std::{
-	cell::RefCell,
-	fmt, ptr, result,
-	sync::{Arc, Mutex},
+	// cell::RefCell,
+	fmt,
+	ptr,
+	result,
+	// sync::{Arc, Mutex},
 };
 use zmq;
 
 pub const SOCKET: &str = "tcp://localhost:5555";
 
 #[derive(Serialize, Deserialize)]
-pub enum MsgType {
-	POD_STARTING, // Register with the engine
-	POD_READY,    // Let engine know that initialization is complete
-	POD_STOPPING, // Pod is ending
+pub enum ContMsgType {
+	PodStarting, // Register with the engine
+	PodReady,    // Let engine know that initialization is complete
+	PodStopping, // Pod is ending
 }
 
-impl fmt::Display for MsgType {
+impl fmt::Display for ContMsgType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match &self {
-			Self::POD_STARTING => write!(f, "0"),
-			Self::POD_READY => write!(f, "1"),
-			Self::POD_STOPPING => write!(f, "2"),
+			Self::PodStarting => write!(f, "0"),
+			Self::PodReady => write!(f, "1"),
+			Self::PodStopping => write!(f, "2"),
 		}
 	}
 }
 
-impl From<MsgType> for zmq::Message {
-	fn from(msg: MsgType) -> Self {
+impl From<ContMsgType> for zmq::Message {
+	fn from(msg: ContMsgType) -> Self {
 		let mut m: u8 = match msg {
-			MsgType::POD_STARTING => 0,
-			MsgType::POD_READY => 1,
-			MsgType::POD_STOPPING => 2,
+			ContMsgType::PodStarting => 0,
+			ContMsgType::PodReady => 1,
+			ContMsgType::PodStopping => 2,
 		};
 		let mut data = zmq::Message::with_size(1);
 		unsafe { ptr::copy_nonoverlapping(&mut m as *mut _, data.as_mut_ptr(), 1) };
@@ -58,8 +61,9 @@ fn get_dockerclient_id() -> u16 {
 
 /// Represents a Docker client
 pub struct ContainerClient {
-	id: u16,             // id of the client
-	socket: zmq::Socket, // socket to send registration, start/stop msgs to the engine
+	id: u16,                  // id of the client
+	socket: zmq::Socket,      // socket to send registration, start/stop msgs to the engine
+	channel: Option<Channel>, // channel to communicate with engine
 }
 
 type Result<ContainerClient> = result::Result<ContainerClient, zmq::Error>;
@@ -70,7 +74,11 @@ impl ContainerClient {
 		let context = zmq::Context::new();
 		let id = get_dockerclient_id();
 		match context.socket(zmq::REQ) {
-			Ok(socket) => Ok(Self { id, socket }),
+			Ok(socket) => Ok(Self {
+				id,
+				socket,
+				channel: None,
+			}),
 			Err(err) => Err(err),
 		}
 	}
@@ -88,11 +96,11 @@ impl ContainerClient {
 	/// Send message to engine about container state
 	/// In case of failures it will attempt thrice to connect
 	/// and thrice to send, in case of a successful connection
-	pub fn send(&self, msg: MsgType) -> zmq::Result<()> {
+	pub fn send(&self, msg: ContMsgType) -> zmq::Result<()> {
 		let cmsg = match msg {
-			MsgType::POD_STARTING => ContainerMsg::registration(self.get_id()).to_json(),
-			MsgType::POD_READY => ContainerMsg::ready(self.get_id()).to_json(),
-			MsgType::POD_STOPPING => ContainerMsg::terminating(self.get_id()).to_json(),
+			ContMsgType::PodStarting => ContainerMsg::registration(self.get_id()).to_json(),
+			ContMsgType::PodReady => ContainerMsg::ready(self.get_id()).to_json(),
+			ContMsgType::PodStopping => ContainerMsg::terminating(self.get_id()).to_json(),
 		};
 
 		if let Err(ce) = self.get_socket().connect(SOCKET) {
@@ -124,6 +132,47 @@ impl ContainerClient {
 		}
 		Ok(()) // successfully sent
 	}
+
+	/// Register with the engine at startup
+	pub fn register(&self) -> zmq::Result<()> {
+		match self.send(ContMsgType::PodStarting) {
+			Err(e) => return Err(e),
+			Ok(_) => {
+				let mut msg = zmq::Message::new();
+				self.get_socket().recv(&mut msg, 0)
+			}
+		}
+	}
+
+	/// Notify the engine that the container is ready
+	pub fn notify(&self) -> zmq::Result<()> {
+		self.send(ContMsgType::PodReady)
+	}
+
+	/// Notify the engine that the container is terminating
+	pub fn terminate(&self) -> zmq::Result<()> {
+		self.send(ContMsgType::PodStopping)
+	}
+
+	/// Once message from engine is successfully received
+	/// look up the tx and rx channels and set it up as
+	/// self.tx_channel and self.rx_channel
+	pub fn setup_channel(&mut self) {
+		if let Ok(_) = self.register() {
+			let rx_name = format!("RX-{}", self.id);
+			let tx_name = format!("TX-{}", self.id);
+			let t_ring = Ring::from_ptr(self.id, RingType::TX, unsafe {
+				dpdk_ffi::rte_ring_lookup(tx_name.as_ptr() as *const _)
+			});
+			let r_ring = Ring::from_ptr(self.id, RingType::RX, unsafe {
+				dpdk_ffi::rte_ring_lookup(rx_name.as_ptr() as *const _)
+			});
+			self.channel = Some(Channel {
+				tx_q: t_ring,
+				rx_q: r_ring,
+			})
+		}
+	}
 }
 
 /// Represents a message to be sent to the engine
@@ -140,7 +189,7 @@ impl ContainerClient {
 #[derive(Serialize, Deserialize)]
 pub struct ContainerMsg {
 	id: u16,
-	msg: MsgType,
+	msg: ContMsgType,
 }
 
 impl ContainerMsg {
@@ -148,7 +197,7 @@ impl ContainerMsg {
 	pub fn registration(id: u16) -> Self {
 		Self {
 			id,
-			msg: MsgType::POD_STARTING,
+			msg: ContMsgType::PodStarting,
 		}
 	}
 
@@ -156,7 +205,7 @@ impl ContainerMsg {
 	pub fn ready(id: u16) -> Self {
 		Self {
 			id,
-			msg: MsgType::POD_READY,
+			msg: ContMsgType::PodReady,
 		}
 	}
 
@@ -164,7 +213,7 @@ impl ContainerMsg {
 	pub fn terminating(id: u16) -> Self {
 		Self {
 			id,
-			msg: MsgType::POD_STOPPING,
+			msg: ContMsgType::PodStopping,
 		}
 	}
 

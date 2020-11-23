@@ -167,6 +167,12 @@ impl Mbuf {
 		unsafe { self.inner.ptr_mut().as_mut() }
 	}
 
+	/// Return mutable reference to the C struct for FFI calls
+	#[inline]
+	pub fn get_ptr(&mut self) -> *mut dpdk_ffi::rte_mbuf {
+		unsafe { self.inner.ptr_mut().as_mut() }
+	}
+
 	/// Returns amount of data stored in the buffer
 	#[inline]
 	pub fn data_len(&self) -> usize {

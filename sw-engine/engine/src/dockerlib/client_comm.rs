@@ -159,18 +159,20 @@ impl ContainerClient {
 	/// self.tx_channel and self.rx_channel
 	pub fn setup_channel(&mut self) {
 		if let Ok(_) = self.register() {
-			let rx_name = format!("RX-{}", self.id);
-			let tx_name = format!("TX-{}", self.id);
-			let t_ring = Ring::from_ptr(self.id, RingType::TX, unsafe {
-				dpdk_ffi::rte_ring_lookup(tx_name.as_ptr() as *const _)
-			});
-			let r_ring = Ring::from_ptr(self.id, RingType::RX, unsafe {
-				dpdk_ffi::rte_ring_lookup(rx_name.as_ptr() as *const _)
-			});
-			self.channel = Some(Channel {
-				tx_q: t_ring,
-				rx_q: r_ring,
-			})
+			// let rx_name = format!("RX-{}", self.id);
+			// let tx_name = format!("TX-{}", self.id);
+			if let Some(t_ring) = Ring::from_ptr(self.id, RingType::TX, unsafe {
+				dpdk_ffi::rte_ring_lookup(format!("TX-{}", self.id).as_ptr() as *const _)
+			}) {
+				if let Some(r_ring) = Ring::from_ptr(self.id, RingType::RX, unsafe {
+					dpdk_ffi::rte_ring_lookup(format!("RX-{}", self.id).as_ptr() as *const _)
+				}) {
+					self.channel = Some(Channel {
+						tx_q: t_ring,
+						rx_q: r_ring,
+					})
+				}
+			}
 		}
 	}
 }

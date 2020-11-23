@@ -43,15 +43,19 @@ impl Default for Ring {
 }
 
 impl Ring {
-	/// Create a new Ring from a pointer
-	pub fn from_ptr(client_id: u16, rtype: RingType, r: *mut dpdk_ffi::rte_ring) -> Self {
-		let raw = unsafe { NonNull::new_unchecked(r) };
-		Self {
-			client_id,
-			rtype,
-			raw,
+	/// Return a Ring created from a pointer if the pointer is not null
+	pub fn from_ptr(client_id: u16, rtype: RingType, r: *mut dpdk_ffi::rte_ring) -> Option<Self> {
+		if let Some(raw) = NonNull::new(r) {
+			Some(Self {
+				client_id,
+				rtype,
+				raw,
+			})
+		} else {
+			None
 		}
 	}
+
 	/// Creates a new `Ring` for `Mbuf`.
 	///
 	/// `capacity` is the maximum number of `Mbuf` the `Mempool` can hold.
@@ -90,14 +94,15 @@ impl Ring {
 
 	/// Get the name to lookup with
 	#[inline]
-	pub fn name(&self) -> &str {
-		let name: &str;
+	pub fn name(&self) -> String {
+		let mut name: &str;
 		match self.rtype {
-			RingType::RX => name = "RX-",
-			RingType::TX => name = "TX-",
+			RingType::RX => name = "RX-".into(),
+			RingType::TX => name = "TX-".into(),
 		}
-		let id = &format!("{}", self.client_id);
-		&format!("{}{}", name, id)
+		let id = format!("{}", self.client_id);
+		format!("{}{}", name, id)
+		// name
 	}
 
 	/// Enqueue a single packet onto the ring
@@ -116,15 +121,12 @@ impl Ring {
 
 	/// Dequeue a single packet from the ring
 	pub fn dequeue(&mut self, pkt: &mut Mbuf) -> Fallible<()> {
-		// match unsafe {
-		// 	dpdk_ffi::_rte_ring_dequeue(self.raw_mut(), &mut (pkt.into_ptr() as *mut c_void))
-		// } {
-		// 	0 => true,
-		// 	_ => false,
-		// }
 		unsafe {
-			dpdk_ffi::_rte_ring_dequeue(self.raw_mut(), &mut (pkt.into_ptr() as *mut c_void))
-				.to_result(|_| DpdkError::new())?
+			dpdk_ffi::_rte_ring_dequeue(
+				self.raw_mut(),
+				&mut (pkt.get_ptr() as *mut _ as *mut c_void),
+			)
+			.to_result(|_| DpdkError::new())?
 		};
 		Ok(())
 	}
@@ -152,7 +154,7 @@ impl fmt::Debug for Ring {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let raw = self.raw();
 		unsafe {
-			f.debug_struct(self.name())
+			f.debug_struct(&self.name()[..])
 				.field("capacity", &raw.capacity)
 				.field("flags", &format_args!("{:#x}", raw.flags))
 				.finish()
@@ -173,8 +175,8 @@ impl Drop for Ring {
 /// a transmit and a receive Ring
 /// These two Rings together form a channel
 pub struct Channel {
-	tx_q: Ring,
-	rx_q: Ring,
+	pub(crate) tx_q: Ring,
+	pub(crate) rx_q: Ring,
 }
 
 impl Channel {
@@ -195,10 +197,7 @@ impl Channel {
 }
 
 impl Drop for Channel {
-	fn drop(&mut self) {
-		drop(self.rx_q);
-		drop(self.tx_q);
-	}
+	fn drop(&mut self) {}
 }
 
 /// Ring to container client maps

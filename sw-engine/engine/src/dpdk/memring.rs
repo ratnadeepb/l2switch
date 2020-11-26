@@ -203,7 +203,7 @@ impl Drop for Channel {
 /// Ring to container client maps
 /// This structure owns all the rings of the engine
 pub struct EngineRingMap {
-	ring_map: HashMap<u16, Channel>,
+	pub(crate) ring_map: HashMap<u16, Channel>,
 }
 
 impl EngineRingMap {

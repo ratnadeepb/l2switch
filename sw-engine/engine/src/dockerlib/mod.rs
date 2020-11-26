@@ -5,4 +5,4 @@
 
 pub mod client_comm;
 
-pub use self::client_comm::{ContainerClient, ContainerMsg, ContMsgType};
+pub use self::client_comm::*;

@@ -11,9 +11,9 @@ use crate::{
 };
 use serde_json;
 use crossbeam_queue::ArrayQueue;
-use std::{result, collections::HashMap, cell::Cell, time::Duration};
+use std::{result, cell::Cell, time::Duration};
 use futures::{self, task::LocalSpawnExt};
-use failure::{Fail, Fallible, format_err};
+use failure::{Fallible, format_err};
 use async_std::task;
 use chashmap::CHashMap;
 

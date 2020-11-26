@@ -4,14 +4,13 @@
  */
 
 use crate::dpdk::{Channel, Ring, RingType};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 // use serde_json::Result as sResult;
 use std::{
-	// cell::RefCell,
-	fmt,
-	ptr,
-	result,
-	// sync::{Arc, Mutex},
+	cell::RefCell,
+	fmt, ptr, result,
+	sync::{Arc, RwLock},
 };
 use zmq;
 
@@ -47,14 +46,15 @@ impl From<ContMsgType> for zmq::Message {
 	}
 }
 
-// ISSUES: What happens if multiple clients are starting at the same time!
-pub static mut CLIENT_ID: u16 = 0;
+lazy_static! {
+	pub static ref CLIENT_ID: RwLock<u16> = RwLock::new(0);
+}
 
 fn get_dockerclient_id() -> u16 {
-	let id: u16;
-	unsafe {
-		id = CLIENT_ID;
-		CLIENT_ID += 1;
+	let mut id = 0;
+	if let Ok(mut cl_id) = CLIENT_ID.write() {
+		id = *cl_id;
+		*cl_id += 1;
 	}
 	id
 }
@@ -159,8 +159,6 @@ impl ContainerClient {
 	/// self.tx_channel and self.rx_channel
 	pub fn setup_channel(&mut self) {
 		if let Ok(_) = self.register() {
-			// let rx_name = format!("RX-{}", self.id);
-			// let tx_name = format!("TX-{}", self.id);
 			if let Some(t_ring) = Ring::from_ptr(self.id, RingType::TX, unsafe {
 				dpdk_ffi::rte_ring_lookup(format!("TX-{}", self.id).as_ptr() as *const _)
 			}) {

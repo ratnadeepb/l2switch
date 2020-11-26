@@ -207,6 +207,10 @@ pub struct EngineRingMap {
 }
 
 impl EngineRingMap {
+	pub fn new() -> Self {
+		let ring_map = HashMap::new();
+		Self { ring_map }
+	}
 	/// Send a packet to a container
 	pub fn send(&mut self, key: u16, pkt: Mbuf) -> Fallible<()> {
 		match self.ring_map.get_mut(&key) {

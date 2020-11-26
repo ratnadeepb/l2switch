@@ -11,13 +11,14 @@ use crate::{
 };
 use serde_json;
 use crossbeam_queue::ArrayQueue;
-use std::{result, collections::HashMap, cell::Cell};
+use std::{result, collections::HashMap, cell::Cell, time::Duration};
 use futures::{self, task::LocalSpawnExt};
 use failure::{Fail, Fallible, format_err};
 use async_std::task;
+use chashmap::CHashMap;
 
 /// Check for messages every 10 ms
-const TIMER_VAL: i64 = 10;
+const TIMER_VAL: u64 = 10;
 
 #[derive(PartialEq)]
 enum ClientStatus {
@@ -27,7 +28,7 @@ enum ClientStatus {
 
 /// The engine that forms the core of the L2 forwarding plane
 pub struct Engine {
-	statusmap: HashMap<u16, ClientStatus>, // maintain status of the clients
+	statusmap: CHashMap<u16, ClientStatus>, // maintain status of the clients
 	ringmap: EngineRingMap, // map for data plane Rings for clients registered
 	socket: zmq::Socket, // open a server socket to let clients register
 	new_msg: Cell<Option<(u16, u64)>>, // new message over the zmq socket
@@ -37,7 +38,7 @@ type Result<Engine> = result::Result<Engine, zmq::Error>;
 
 impl Engine {
 	pub fn new() -> Result<Self> {
-		let statusmap = HashMap::new();
+		let statusmap = CHashMap::new();
 		let ringmap = EngineRingMap::new();
 		let context = zmq::Context::new();
 		match context.socket(zmq::REP) {
@@ -50,9 +51,9 @@ impl Engine {
 	}
 
 	/// Get events from socket
-	async fn get_msg(&self) -> Fallible<()> {
-
-		match self.socket.poll(zmq::POLLIN, TIMER_VAL) {
+	fn get_msg(&self) -> Fallible<()> {
+		let timeout = 2; // timeout if there are no messages in 2 ms
+		match self.socket.poll(zmq::POLLIN, timeout) {
 			Ok(1) => {
 				let mut msg = zmq::Message::new();
 				self.socket.recv(&mut msg, zmq::DONTWAIT)?; // non-blocking receive
@@ -80,7 +81,7 @@ impl Engine {
 	}
 
 	/// Register a new client or change its status
-	fn set_client_status(&mut self, id: u16, m: u64) -> Fallible<()> {
+	fn set_client_status(&self, id: u16, m: u64) -> Fallible<()> {
 		match m {
 			0 => {
 				let rx_q = Ring::new(
@@ -107,41 +108,43 @@ impl Engine {
 				self.statusmap.insert(id as u16, ClientStatus::STARTING);
 			},
 			1 => {
-				let v = self.statusmap.get_mut(&(id as u16)).ok_or_else(|| format_err!("Failed to get client"))?;
+				let mut v = self.statusmap.get_mut(&(id as u16)).ok_or_else(|| format_err!("Failed to get client"))?;
 				*v = ClientStatus::READY;
 			},
 			2 => {
-				if self.statusmap.contains_key(&(id as u16)) {
-					self.statusmap.remove(&(id as u16)).ok_or_else(|| format_err!("Failed to remove client"))?;
-				}
-				if self.ringmap.ring_map.contains_key(&(id as u16)) {
-					self.ringmap.ring_map.remove(&(id as u16)).ok_or_else(|| format_err!("Failed to remove client"))?;
-				}
+				self.statusmap.remove(&(id as u16)).ok_or_else(|| format_err!("Failed to remove client"))?;
+				self.ringmap.ring_map.remove(&(id as u16)).ok_or_else(|| format_err!("Failed to remove client"))?;
 			},
 			_ => return Err(format_err!("Unknown client status")),
 		}
 		Ok(())
 	}
 
-	/// Send packet to a client
-	pub fn send(&mut self, key: u16, pkt: Mbuf) -> Fallible<()> {
-		match self.ringmap.ring_map.get_mut(&key) {
-			Some(ch) => ch.send(pkt),
-			None => Err(format_err!("Failed to send packet")),
+	/// Check for messages
+	/// set client status if there are messages
+	/// every TIMER_VAL period
+	async fn check_n_set_client_status(&self) -> () {
+		task::sleep(Duration::from_micros(TIMER_VAL)).await;
+		if let Some(val) = self.new_msg.get() {
+			self.set_client_status(val.0, val.1).ok(); // NOTE: discards the error
+			self.new_msg.set(None);
 		}
+		()
+	}
+
+	/// Send packet to a client
+	fn send(&self, key: u16, pkt: Mbuf) -> Fallible<()> {
+		self.ringmap.send(key, pkt)
 	}
 
 	/// Receive a packet from a client
-	pub fn receive(&mut self, key: u16, pkt: &mut Mbuf) -> Fallible<()> {
-		match self.ringmap.ring_map.get_mut(&key) {
-			Some(ch) => ch.receive(pkt),
-			None => Err(format_err!("Failed to receive packet")),
-		}
+	fn receive(&self, key: u16, pkt: &mut Mbuf) -> Fallible<()> {
+		self.ringmap.receive(key, pkt)
 	}
 
 	/// Packet receive function
 	/// Receive packets from the NIC and place them in the deque mbufs
-	pub async fn rx_main(
+	async fn rx_main(
 		&self, 
 		mut receiver: futures::channel::oneshot::Receiver<()>,
 		mbufs: &ArrayQueue<PortIdMbuf>,
@@ -175,7 +178,7 @@ impl Engine {
 	/// Extract the five tuple from each mbuf
 	/// Associate the five tuple with a port id
 	/// Update the routing table
-	pub async fn process_packets(&self, mbufs: &ArrayQueue<PortIdMbuf>) {
+	async fn process_packets(&self, mbufs: &ArrayQueue<PortIdMbuf>) {
 		while !mbufs.is_empty() {
 			match mbufs.pop() {
 				Some(elem) => {
@@ -214,23 +217,26 @@ impl Engine {
 	}
 
 	/// Function for each thread to run
-	fn work_horse(
+	pub fn work_horse(
 		&'static self,
 		receiver: futures::channel::oneshot::Receiver<()>,
 		mbufs: &'static ArrayQueue<PortIdMbuf>,
-	) {
+	) -> Fallible<()> {
 		// create an executor to run on the local thread only
 		let mut executor = futures::executor::LocalPool::new();
 		// a task spawner associated to the executor
 		let spawner = executor.spawner();
 		// create the required futures (green threads)
+		let reg_fut = self.check_n_set_client_status(); // check for new clients
 		let rx_fut = self.rx_main(receiver, mbufs); // get packets
 		let process_pkts_fut = self.process_packets(mbufs); // process packets
 		// spawn the futures
-		let rx_fut_handle = spawner.spawn_local_with_handle(rx_fut).unwrap();
-		spawner.spawn_local(process_pkts_fut).unwrap();
+		let rx_fut_handle = spawner.spawn_local_with_handle(rx_fut)?;
+		spawner.spawn_local(process_pkts_fut)?;
+		spawner.spawn_local(reg_fut)?;
 		// run the executor till rx_fut returns
 		// drop everything the moment the rx_main function returns
 		executor.run_until(rx_fut_handle);
+		Ok(())
 	}
 }

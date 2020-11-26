@@ -10,6 +10,7 @@ use crate::{
 	ffi::{AsStr, ToCString, ToResult},
 	info,
 };
+use chashmap::CHashMap;
 use dpdk_ffi;
 use failure::{format_err, Fallible};
 use std::{collections::HashMap, ffi::c_void, fmt, os::raw, ptr::NonNull, sync::Arc};
@@ -203,26 +204,28 @@ impl Drop for Channel {
 /// Ring to container client maps
 /// This structure owns all the rings of the engine
 pub struct EngineRingMap {
-	pub(crate) ring_map: HashMap<u16, Channel>,
+	// pub(crate) ring_map: HashMap<u16, Channel>,
+	pub(crate) ring_map: CHashMap<u16, Channel>,
 }
 
 impl EngineRingMap {
 	pub fn new() -> Self {
-		let ring_map = HashMap::new();
+		// let ring_map = HashMap::new();
+		let ring_map = CHashMap::new();
 		Self { ring_map }
 	}
 	/// Send a packet to a container
-	pub fn send(&mut self, key: u16, pkt: Mbuf) -> Fallible<()> {
+	pub fn send(&self, key: u16, pkt: Mbuf) -> Fallible<()> {
 		match self.ring_map.get_mut(&key) {
-			Some(ch) => ch.send(pkt),
+			Some(mut ch) => ch.send(pkt),
 			None => Err(format_err!("Failed to send packet")),
 		}
 	}
 
 	/// Receive a packet from a container
-	pub fn receive(&mut self, key: u16, pkt: &mut Mbuf) -> Fallible<()> {
+	pub fn receive(&self, key: u16, pkt: &mut Mbuf) -> Fallible<()> {
 		match self.ring_map.get_mut(&key) {
-			Some(ch) => ch.receive(pkt),
+			Some(mut ch) => ch.receive(pkt),
 			None => Err(format_err!("Failed to receive packet")),
 		}
 	}
